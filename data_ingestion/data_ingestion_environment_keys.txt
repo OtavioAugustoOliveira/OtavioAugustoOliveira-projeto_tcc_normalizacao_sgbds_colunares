@@ -1,0 +1,24 @@
+# ajuste aqui as variáveis do data_ingestion.
+
+
+# -- PostgreSQL --
+PG_USER = 
+PG_PASSWORD = 
+PG_HOST =
+PG_PORT =
+PG_DBNAME =
+
+# -- SQL Server --
+SQL_SERVER_NAME 
+SQL_DBNAME = 
+SQL_USER = 
+SQL_PASSWORD = 
+
+# -- Snowflake --
+SNOW_USER = 
+SNOW_PASSWORD = 
+SNOW_ACCOUNT = 
+SNOW_WAREHOUSE = 
+SNOW_DATABASE = 
+SNOW_SCHEMA =
+
