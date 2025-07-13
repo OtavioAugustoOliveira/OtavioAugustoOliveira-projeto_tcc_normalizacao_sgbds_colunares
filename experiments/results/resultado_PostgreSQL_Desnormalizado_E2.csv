@@ -1,0 +1,11 @@
+SGBD,Modelo,Experimento,N_Execucao,Tempo_ms,IO_Reads,IO_Hits_Cache
+PostgreSQL,Desnormalizado,E2,1,13835.371,0,39780
+PostgreSQL,Desnormalizado,E2,2,13227.292,0,38948
+PostgreSQL,Desnormalizado,E2,3,12011.919,0,37790
+PostgreSQL,Desnormalizado,E2,4,10666.994,0,38874
+PostgreSQL,Desnormalizado,E2,5,12621.048,0,39686
+PostgreSQL,Desnormalizado,E2,6,15482.793,0,38428
+PostgreSQL,Desnormalizado,E2,7,12140.334,0,37886
+PostgreSQL,Desnormalizado,E2,8,11918.298,0,39522
+PostgreSQL,Desnormalizado,E2,9,10217.793,0,38830
+PostgreSQL,Desnormalizado,E2,10,12997.113,0,37828

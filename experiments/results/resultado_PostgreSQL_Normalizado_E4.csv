@@ -1,0 +1,11 @@
+SGBD,Modelo,Experimento,N_Execucao,Tempo_ms,IO_Reads,IO_Hits_Cache
+PostgreSQL,Normalizado,E4,1,27522.798,0,23756910
+PostgreSQL,Normalizado,E4,2,26835.338,0,23756910
+PostgreSQL,Normalizado,E4,3,27866.773,0,23756910
+PostgreSQL,Normalizado,E4,4,27075.54,0,23756910
+PostgreSQL,Normalizado,E4,5,28161.915,0,23756910
+PostgreSQL,Normalizado,E4,6,28141.479,0,23756910
+PostgreSQL,Normalizado,E4,7,28683.016,0,23756910
+PostgreSQL,Normalizado,E4,8,27499.417,0,23756910
+PostgreSQL,Normalizado,E4,9,27681.104,0,23756910
+PostgreSQL,Normalizado,E4,10,26678.108,0,23756910

@@ -234,7 +234,7 @@ def run_and_measure(sgbd, modelo, query_id):
 
 SGBD_ESCOLHIDO = "PostgreSQL"  # Opções: "PostgreSQL", "SQL Server", "Snowflake"
 MODELO_ESCOLHIDO = "Desnormalizado"  # Opções: "Desnormalizado", "Normalizado"
-EXPERIMENTO_ESCOLHIDO = "E1"  # Opções: "E1", "E2", "E3", "E4"
+EXPERIMENTO_ESCOLHIDO = "E4"  # Opções: "E1", "E2", "E3", "E4"
 
 # --- EXECUÇÃO DO EXPERIMENTO ---
 
