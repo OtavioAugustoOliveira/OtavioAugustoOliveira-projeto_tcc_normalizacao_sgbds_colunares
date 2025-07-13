@@ -4,6 +4,11 @@ import snowflake.connector
 from snowflake.connector.pandas_tools import write_pandas
 import urllib
 import os
+import sys
+import os
+
+# Adiciona o diretório raiz ao path para importar config_loader
+sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from config_loader import obter_configuracoes, imprimir_configuracoes
 
 # --- CONFIGURAÇÃO GLOBAL ---
