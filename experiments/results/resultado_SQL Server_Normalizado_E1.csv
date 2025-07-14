@@ -1,0 +1,11 @@
+SGBD,Modelo,Experimento,N_Execucao,Tempo_Total_ms,Tempo_Servidor_ms,Armazenamento_MB,PG_IO_Reads,PG_IO_Hits_Cache,SS_IO_Logical_Reads,SS_IO_Physical_Reads,SF_Scanned_MB
+SQL Server,Normalizado,E1,1,131.997,,633.031,,,,,
+SQL Server,Normalizado,E1,2,136.129,,633.031,,,,,
+SQL Server,Normalizado,E1,3,135.566,,633.031,,,,,
+SQL Server,Normalizado,E1,4,157.902,,633.031,,,,,
+SQL Server,Normalizado,E1,5,134.000,,633.031,,,,,
+SQL Server,Normalizado,E1,6,136.999,,633.031,,,,,
+SQL Server,Normalizado,E1,7,138.999,,633.031,,,,,
+SQL Server,Normalizado,E1,8,136.450,,633.031,,,,,
+SQL Server,Normalizado,E1,9,135.159,,633.031,,,,,
+SQL Server,Normalizado,E1,10,139.742,,633.031,,,,,

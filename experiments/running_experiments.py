@@ -3,20 +3,21 @@ import time
 import psycopg2
 import pyodbc
 import snowflake.connector
-import argparse
 import re
 import sys
 import os
 
 # Adiciona o diretório raiz ao path para importar config_loader
-sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-from config_loader import obter_configuracoes, imprimir_configuracoes
+try:
+    sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
+    from config_loader import obter_configuracoes, imprimir_configuracoes
+except ImportError:
+    print("ERRO: Não foi possível encontrar 'config_loader'. Certifique-se de que o script está na estrutura de pastas correta.")
+    sys.exit(1)
 
 # --- CONFIGURAÇÃO GLOBAL ---
-# Carrega as configurações do arquivo JSON via config_loader
 config = obter_configuracoes()
 
-# Extrai as variáveis de configuração
 PG_USER = config['PG_USER']
 PG_PASSWORD = config['PG_PASSWORD']
 PG_HOST = config['PG_HOST']
@@ -35,94 +36,51 @@ SNOW_WAREHOUSE = config['SNOW_WAREHOUSE']
 SNOW_DATABASE = config['SNOW_DATABASE']
 SNOW_SCHEMA = config['SNOW_SCHEMA']
 
-# Imprime as configurações carregadas
-print("=== CONFIGURAÇÕES CARREGADAS ===")
-imprimir_configuracoes()
-
-# Debug: Mostra as configurações do PostgreSQL
-print(f"\nDEBUG - Configurações PostgreSQL:")
-print(f"Host: {PG_HOST}")
-print(f"Port: {PG_PORT}")
-print(f"Database: {PG_DBNAME}")
-print(f"User: {PG_USER}")
-print(f"Password: {'*' * len(PG_PASSWORD) if PG_PASSWORD else 'VAZIO'}")
-
 # --- CONFIGURAÇÕES DE CONEXÃO ---
 CONEXOES = {
-    'PostgreSQL': {
-        'host': PG_HOST,
-        'port': PG_PORT,
-        'database': PG_DBNAME,
-        'user': PG_USER,
-        'password': PG_PASSWORD
-    },
-    'SQL Server': {
-        'server': SQL_SERVER_NAME,
-        'database': SQL_DBNAME,
-        'user': SQL_USER,
-        'password': SQL_PASSWORD,
-        'driver': '{ODBC Driver 17 for SQL Server}'
-    },
-    'Snowflake': {
-        'user': SNOW_USER,
-        'password': SNOW_PASSWORD,
-        'account': SNOW_ACCOUNT,
-        'warehouse': SNOW_WAREHOUSE,
-        'database': SNOW_DATABASE,
-        'schema': SNOW_SCHEMA
-    }
+    'PostgreSQL': { 'host': PG_HOST, 'port': PG_PORT, 'database': PG_DBNAME, 'user': PG_USER, 'password': PG_PASSWORD },
+    'SQL Server': { 'server': SQL_SERVER_NAME, 'database': SQL_DBNAME, 'user': SQL_USER, 'password': SQL_PASSWORD, 'driver': '{ODBC Driver 17 for SQL Server}' },
+    'Snowflake': { 'user': SNOW_USER, 'password': SNOW_PASSWORD, 'account': SNOW_ACCOUNT, 'warehouse': SNOW_WAREHOUSE, 'database': SNOW_DATABASE, 'schema': SNOW_SCHEMA }
 }
 
 # --- BIBLIOTECA DE QUERIES ---
-# Queries coletadas dos arquivos de configuração para cada banco
-
 QUERIES = {
     'PostgreSQL': {
         'Desnormalizado': {
-            'E1': "SELECT SIGLA_UF, SUM(AREA_KM2) AS area_total_km2 FROM cenario_nao_normalizado GROUP BY SIGLA_UF ORDER BY SIGLA_UF;",
-            'E2': "SELECT NM_MUN, NM_UF FROM cenario_nao_normalizado WHERE ST_Contains(geometry, ST_SetSRID(ST_MakePoint(-34.8779, -8.0578), 4326));",
-            'E3': "SELECT NM_MUN, AREA_KM2 FROM cenario_nao_normalizado WHERE NM_REGIAO = 'Nordeste' AND AREA_KM2 > 5000;",
-            'E4': "SELECT A.NM_MUN AS municipio_origem, B.NM_MUN AS municipio_vizinho FROM cenario_nao_normalizado AS A JOIN cenario_nao_normalizado AS B ON ST_Touches(A.geometry, B.geometry) WHERE A.SIGLA_UF = 'PE' AND A.CD_MUN < B.CD_MUN;"
-        },
-        'Normalizado': {
-            'E1': "SELECT est.SIGLA_UF, SUM(mun.AREA_KM2) AS area_total_km2 FROM fato_municipios AS mun JOIN dim_estados AS est ON mun.ID_UF_FK = est.ID_UF GROUP BY est.SIGLA_UF ORDER BY est.SIGLA_UF;",
-            'E2': "SELECT mun.NM_MUN, est.NM_UF FROM fato_municipios AS mun JOIN dim_estados AS est ON mun.ID_UF_FK = est.ID_UF WHERE ST_Contains(mun.geometry, ST_SetSRID(ST_MakePoint(-34.8779, -8.0578), 4326));",
-            'E3': "SELECT mun.NM_MUN, mun.AREA_KM2 FROM fato_municipios AS mun JOIN dim_estados AS est ON mun.ID_UF_FK = est.ID_UF JOIN dim_regioes AS reg ON est.ID_REGIAO_FK = reg.ID_REGIAO WHERE reg.NM_REGIAO = 'Nordeste' AND mun.AREA_KM2 > 5000;",
-            'E4': "SELECT A.NM_MUN AS municipio_origem, B.NM_MUN AS municipio_vizinho FROM fato_municipios AS A JOIN fato_municipios AS B ON ST_Touches(A.geometry, B.geometry) WHERE A.ID_UF_FK = '26' AND A.ID_MUNICIPIO < B.ID_MUNICIPIO;"
-        }
-    },
-    'SQL Server': {
+            'E1': "SELECT NM_MUN, COUNT(*) AS contagem_setores, SUM(AREA_KM2) AS area_total_km2, AVG(AREA_KM2) AS area_media_km2, RANK() OVER (ORDER BY COUNT(*) DESC) AS ranking_por_contagem FROM cenario_nao_normalizado GROUP BY NM_MUN ORDER BY ranking_por_contagem;",
+            'E2': "WITH PontosDeTeste (ponto) AS (SELECT * FROM (VALUES (ST_SetSRID(ST_MakePoint(-46.63, -23.55), 4326)), (ST_SetSRID(ST_MakePoint(-46.87, -23.38), 4326)), (ST_SetSRID(ST_MakePoint(-47.93, -23.49), 4326)), (ST_SetSRID(ST_MakePoint(-47.06, -22.90), 4326)), (ST_SetSRID(ST_MakePoint(-51.37, -20.77), 4326)), (ST_SetSRID(ST_MakePoint(-46.65, -23.56), 4326)), (ST_SetSRID(ST_MakePoint(-46.70, -23.52), 4326)), (ST_SetSRID(ST_MakePoint(-46.75, -23.48), 4326)), (ST_SetSRID(ST_MakePoint(-46.80, -23.44), 4326)), (ST_SetSRID(ST_MakePoint(-46.85, -23.40), 4326))) AS v) SELECT ST_AsText(p.ponto), t.CD_SETOR, t.NM_MUN FROM PontosDeTeste p JOIN cenario_nao_normalizado t ON ST_Contains(t.geometry, p.ponto);",
+            'E3': "WITH MunicipioAlvo AS (SELECT ST_Union(geometry) AS geom_mun FROM cenario_nao_normalizado WHERE NM_MUN = 'Campinas') SELECT t.NM_SITUACAO, SUM(t.AREA_KM2) AS area_total_km2 FROM cenario_nao_normalizado t, MunicipioAlvo m WHERE ST_Intersects(t.geometry, m.geom_mun) GROUP BY t.NM_SITUACAO;",
+            'E4': "SELECT a.CD_SETOR, COUNT(b.CD_SETOR) AS contagem_vizinhos FROM cenario_nao_normalizado a JOIN cenario_nao_normalizado b ON ST_Touches(a.geometry, b.geometry) WHERE a.NM_MUN = 'Sorocaba' AND b.NM_MUN = 'Sorocaba' AND a.CD_SETOR <> b.CD_SETOR GROUP BY a.CD_SETOR ORDER BY contagem_vizinhos DESC;"
+        }, 'Normalizado': {
+            'E1': "SELECT d.NM_MUN, COUNT(*) AS contagem_setores, SUM(f.AREA_KM2) AS area_total_km2, AVG(f.AREA_KM2) AS area_media_km2, RANK() OVER (ORDER BY COUNT(*) DESC) AS ranking_por_contagem FROM fato_setores_censitarios AS f JOIN dim_localizacao AS d ON f.ID_LOCALIZACAO_FK = d.ID_LOCALIZACAO GROUP BY d.NM_MUN ORDER BY ranking_por_contagem;",
+            'E2': "WITH PontosDeTeste (ponto) AS (SELECT * FROM (VALUES (ST_SetSRID(ST_MakePoint(-46.63, -23.55), 4326)), (ST_SetSRID(ST_MakePoint(-46.87, -23.38), 4326)), (ST_SetSRID(ST_MakePoint(-47.93, -23.49), 4326)), (ST_SetSRID(ST_MakePoint(-47.06, -22.90), 4326)), (ST_SetSRID(ST_MakePoint(-51.37, -20.77), 4326)), (ST_SetSRID(ST_MakePoint(-46.65, -23.56), 4326)), (ST_SetSRID(ST_MakePoint(-46.70, -23.52), 4326)), (ST_SetSRID(ST_MakePoint(-46.75, -23.48), 4326)), (ST_SetSRID(ST_MakePoint(-46.80, -23.44), 4326)), (ST_SetSRID(ST_MakePoint(-46.85, -23.40), 4326))) AS v) SELECT ST_AsText(p.ponto), t.CD_SETOR, d.NM_MUN FROM PontosDeTeste p JOIN fato_setores_censitarios t ON ST_Contains(t.geometry, p.ponto) JOIN dim_localizacao d ON t.ID_LOCALIZACAO_FK = d.ID_LOCALIZACAO;",
+            'E3': "WITH MunicipioAlvo AS (SELECT ST_Union(f.geometry) AS geom_mun FROM fato_setores_censitarios f JOIN dim_localizacao d ON f.ID_LOCALIZACAO_FK = d.ID_LOCALIZACAO WHERE d.NM_MUN = 'Campinas') SELECT s.NM_SITUACAO, SUM(f.AREA_KM2) AS area_total_km2 FROM fato_setores_censitarios f JOIN dim_situacao s ON f.ID_SITUACAO_FK = s.ID_SITUACAO, MunicipioAlvo m WHERE ST_Intersects(f.geometry, m.geom_mun) GROUP BY s.NM_SITUACAO;",
+            'E4': "SELECT a.CD_SETOR, COUNT(b.CD_SETOR) AS contagem_vizinhos FROM fato_setores_censitarios a JOIN fato_setores_censitarios b ON ST_Touches(a.geometry, b.geometry) JOIN dim_localizacao da ON a.ID_LOCALIZACAO_FK = da.ID_LOCALIZACAO JOIN dim_localizacao db ON b.ID_LOCALIZACAO_FK = db.ID_LOCALIZACAO WHERE da.NM_MUN = 'Sorocaba' AND db.NM_MUN = 'Sorocaba' AND a.CD_SETOR <> b.CD_SETOR GROUP BY a.CD_SETOR ORDER BY contagem_vizinhos DESC;"
+        }}, 'SQL Server': {
         'Desnormalizado': {
-            'E1': "SELECT SIGLA_UF, SUM(AREA_KM2) AS area_total_km2 FROM cenario_nao_normalizado GROUP BY SIGLA_UF ORDER BY SIGLA_UF;",
-            'E2': "SELECT NM_MUN, NM_UF FROM cenario_nao_normalizado WHERE geometry.STContains(geography::Point(-8.0578, -34.8779, 4326)) = 1;",
-            'E3': "SELECT NM_MUN, AREA_KM2 FROM cenario_nao_normalizado WHERE NM_REGIAO = 'Nordeste' AND AREA_KM2 > 5000;",
-            'E4': "SELECT A.NM_MUN AS municipio_origem, B.NM_MUN AS municipio_vizinho FROM cenario_nao_normalizado AS A JOIN cenario_nao_normalizado AS B ON A.geometry.STTouches(B.geometry) = 1 WHERE A.SIGLA_UF = 'PE' AND A.CD_MUN < B.CD_MUN;"
-        },
-        'Normalizado': {
-            'E1': "SELECT est.SIGLA_UF, SUM(mun.AREA_KM2) AS area_total_km2 FROM fato_municipios AS mun JOIN dim_estados AS est ON mun.ID_UF_FK = est.ID_UF GROUP BY est.SIGLA_UF ORDER BY est.SIGLA_UF;",
-            'E2': "SELECT mun.NM_MUN, est.NM_UF FROM fato_municipios AS mun JOIN dim_estados AS est ON mun.ID_UF_FK = est.ID_UF WHERE mun.geometry.STContains(geography::Point(-8.0578, -34.8779, 4326)) = 1;",
-            'E3': "SELECT mun.NM_MUN, mun.AREA_KM2 FROM fato_municipios AS mun JOIN dim_estados AS est ON mun.ID_UF_FK = est.ID_UF JOIN dim_regioes AS reg ON est.ID_REGIAO_FK = reg.ID_REGIAO WHERE reg.NM_REGIAO = 'Nordeste' AND mun.AREA_KM2 > 5000;",
-            'E4': "SELECT A.NM_MUN AS municipio_origem, B.NM_MUN AS municipio_vizinho FROM fato_municipios AS A JOIN fato_municipios AS B ON A.geometry.STTouches(B.geometry) = 1 WHERE A.ID_UF_FK = 26 AND A.ID_MUNICIPIO < B.ID_MUNICIPIO;"
-        }
-    },
-    'Snowflake': {
+            'E1': "SELECT NM_MUN, COUNT(*) AS contagem_setores, SUM(AREA_KM2) AS area_total_km2, AVG(AREA_KM2) AS area_media_km2, RANK() OVER (ORDER BY COUNT(*) DESC) AS ranking_por_contagem FROM cenario_nao_normalizado GROUP BY NM_MUN ORDER BY ranking_por_contagem;",
+            'E2': "WITH PontosDeTeste (ponto) AS (SELECT GEOMETRY::Point(-46.63, -23.55, 4326) UNION ALL SELECT GEOMETRY::Point(-46.87, -23.38, 4326) UNION ALL SELECT GEOMETRY::Point(-47.93, -23.49, 4326) UNION ALL SELECT GEOMETRY::Point(-47.06, -22.90, 4326) UNION ALL SELECT GEOMETRY::Point(-51.37, -20.77, 4326) UNION ALL SELECT GEOMETRY::Point(-46.65, -23.56, 4326) UNION ALL SELECT GEOMETRY::Point(-46.70, -23.52, 4326) UNION ALL SELECT GEOMETRY::Point(-46.75, -23.48, 4326) UNION ALL SELECT GEOMETRY::Point(-46.80, -23.44, 4326) UNION ALL SELECT GEOMETRY::Point(-46.85, -23.40, 4326)) SELECT p.ponto.ToString(), t.CD_SETOR, t.NM_MUN FROM PontosDeTeste p JOIN cenario_nao_normalizado t ON t.geometry.STContains(p.ponto) = 1;",
+            'E3': "WITH MunicipioAlvo AS (SELECT GEOMETRY::UnionAggregate(geometry) AS geom_mun FROM cenario_nao_normalizado WHERE NM_MUN = 'Campinas') SELECT t.NM_SITUACAO, SUM(t.AREA_KM2) AS area_total_km2 FROM cenario_nao_normalizado t, MunicipioAlvo m WHERE t.geometry.STIntersects(m.geom_mun) = 1 GROUP BY t.NM_SITUACAO;",
+            'E4': "SELECT a.CD_SETOR, COUNT(b.CD_SETOR) AS contagem_vizinhos FROM cenario_nao_normalizado a JOIN cenario_nao_normalizado b ON a.geometry.STTouches(b.geometry) = 1 WHERE a.NM_MUN = 'Sorocaba' AND b.NM_MUN = 'Sorocaba' AND a.CD_SETOR <> b.CD_SETOR GROUP BY a.CD_SETOR ORDER BY contagem_vizinhos DESC;"
+        }, 'Normalizado': {
+            'E1': "SELECT d.NM_MUN, COUNT(*) AS contagem_setores, SUM(f.AREA_KM2) AS area_total_km2, AVG(f.AREA_KM2) AS area_media_km2, RANK() OVER (ORDER BY COUNT(*) DESC) AS ranking_por_contagem FROM fato_setores_censitarios AS f JOIN dim_localizacao AS d ON f.ID_LOCALIZACAO_FK = d.ID_LOCALIZACAO GROUP BY d.NM_MUN ORDER BY ranking_por_contagem;",
+            'E2': "WITH PontosDeTeste (ponto) AS (SELECT GEOMETRY::Point(-46.63, -23.55, 4326) UNION ALL SELECT GEOMETRY::Point(-46.87, -23.38, 4326) UNION ALL SELECT GEOMETRY::Point(-47.93, -23.49, 4326) UNION ALL SELECT GEOMETRY::Point(-47.06, -22.90, 4326) UNION ALL SELECT GEOMETRY::Point(-51.37, -20.77, 4326) UNION ALL SELECT GEOMETRY::Point(-46.65, -23.56, 4326) UNION ALL SELECT GEOMETRY::Point(-46.70, -23.52, 4326) UNION ALL SELECT GEOMETRY::Point(-46.75, -23.48, 4326) UNION ALL SELECT GEOMETRY::Point(-46.80, -23.44, 4326) UNION ALL SELECT GEOMETRY::Point(-46.85, -23.40, 4326)) SELECT p.ponto.ToString(), t.CD_SETOR, d.NM_MUN FROM PontosDeTeste p JOIN fato_setores_censitarios t ON t.geometry.STContains(p.ponto) = 1 JOIN dim_localizacao d ON t.ID_LOCALIZACAO_FK = d.ID_LOCALIZACAO;",
+            'E3': "WITH MunicipioAlvo AS (SELECT GEOMETRY::UnionAggregate(f.geometry) AS geom_mun FROM fato_setores_censitarios f JOIN dim_localizacao d ON f.ID_LOCALIZACAO_FK = d.ID_LOCALIZACAO WHERE d.NM_MUN = 'Campinas') SELECT s.NM_SITUACAO, SUM(f.AREA_KM2) AS area_total_km2 FROM fato_setores_censitarios f JOIN dim_situacao s ON f.ID_SITUACAO_FK = s.ID_SITUACAO, MunicipioAlvo m WHERE f.geometry.STIntersects(m.geom_mun) = 1 GROUP BY s.NM_SITUACAO;",
+            'E4': "SELECT a.CD_SETOR, COUNT(b.CD_SETOR) AS contagem_vizinhos FROM fato_setores_censitarios a JOIN fato_setores_censitarios b ON a.geometry.STTouches(b.geometry) = 1 JOIN dim_localizacao da ON a.ID_LOCALIZACAO_FK = da.ID_LOCALIZACAO JOIN dim_localizacao db ON b.ID_LOCALIZACAO_FK = db.ID_LOCALIZACAO WHERE da.NM_MUN = 'Sorocaba' AND db.NM_MUN = 'Sorocaba' AND a.CD_SETOR <> b.CD_SETOR GROUP BY a.CD_SETOR ORDER BY contagem_vizinhos DESC;"
+        }}, 'Snowflake': {
         'Desnormalizado': {
-            'E1': "SELECT SIGLA_UF, SUM(AREA_KM2) AS area_total_km2 FROM cenario_nao_normalizado GROUP BY SIGLA_UF ORDER BY SIGLA_UF;",
-            'E2': "SELECT NM_MUN, NM_UF FROM CENARIO_NAO_NORMALIZADO WHERE ST_CONTAINS(GEOMETRY, ST_POINT(-34.8779, -8.0578));",
-            'E3': "SELECT NM_MUN, AREA_KM2 FROM CENARIO_NAO_NORMALIZADO WHERE NM_REGIAO = 'Nordeste' AND AREA_KM2 > 5000;",
-            'E4': "SELECT A.NM_MUN AS municipio_origem, B.NM_MUN AS municipio_vizinho FROM cenario_nao_normalizado AS A JOIN cenario_nao_normalizado AS B ON ST_Touches(A.geometry, B.geometry) WHERE A.SIGLA_UF = 'PE' AND A.CD_MUN < B.CD_MUN;"
-        },
-        'Normalizado': {
-            'E1': "SELECT est.SIGLA_UF, SUM(mun.AREA_KM2) AS area_total_km2 FROM fato_municipios AS mun JOIN dim_estados AS est ON mun.ID_UF_FK = est.ID_UF GROUP BY est.SIGLA_UF ORDER BY est.SIGLA_UF;",
-            'E2': "SELECT mun.NM_MUN, est.NM_UF FROM FATO_MUNICIPIOS AS mun JOIN DIM_ESTADOS AS est ON mun.ID_UF_FK = est.ID_UF WHERE ST_CONTAINS(mun.GEOMETRY, ST_POINT(-34.8779, -8.0578));",
-            'E3': "SELECT mun.NM_MUN, mun.AREA_KM2 FROM FATO_MUNICIPIOS AS mun JOIN DIM_ESTADOS AS est ON mun.ID_UF_FK = est.ID_UF JOIN DIM_REGIOES AS reg ON est.ID_REGIAO_FK = reg.ID_REGIAO WHERE reg.NM_REGIAO = 'Nordeste' AND mun.AREA_KM2 > 5000;",
-            'E4': "SELECT A.NM_MUN AS municipio_origem, B.NM_MUN AS municipio_vizinho FROM fato_municipios AS A JOIN fato_municipios AS B ON ST_Touches(A.geometry, B.geometry) WHERE A.ID_UF_FK = '26' AND A.ID_MUNICIPIO < B.ID_MUNICIPIO;"
-        }
-    }
-}
+            'E1': "SELECT NM_MUN, COUNT(*) AS contagem_setores, SUM(AREA_KM2) AS area_total_km2, AVG(AREA_KM2) AS area_media_km2, RANK() OVER (ORDER BY COUNT(*) DESC) AS ranking_por_contagem FROM cenario_nao_normalizado GROUP BY NM_MUN ORDER BY ranking_por_contagem;",
+            'E2': "WITH PontosDeTeste (ponto) AS (SELECT * FROM (VALUES (ST_MAKEPOINT(-46.63, -23.55)), (ST_MAKEPOINT(-46.87, -23.38)), (ST_MAKEPOINT(-47.93, -23.49)), (ST_MAKEPOINT(-47.06, -22.90)), (ST_MAKEPOINT(-51.37, -20.77)), (ST_MAKEPOINT(-46.65, -23.56)), (ST_MAKEPOINT(-46.70, -23.52)), (ST_MAKEPOINT(-46.75, -23.48)), (ST_MAKEPOINT(-46.80, -23.44)), (ST_MAKEPOINT(-46.85, -23.40))) AS v(ponto)) SELECT p.ponto, t.CD_SETOR, t.NM_MUN FROM PontosDeTeste p JOIN cenario_nao_normalizado t ON ST_CONTAINS(t.geometry, p.ponto);",
+            'E3': "WITH MunicipioAlvo AS (SELECT ST_UNION_AGG(geometry) AS geom_mun FROM cenario_nao_normalizado WHERE NM_MUN = 'Campinas') SELECT t.NM_SITUACAO, SUM(t.AREA_KM2) AS area_total_km2 FROM cenario_nao_normalizado t, MunicipioAlvo m WHERE ST_INTERSECTS(t.geometry, m.geom_mun) GROUP BY t.NM_SITUACAO;",
+            'E4': "SELECT a.CD_SETOR, COUNT(b.CD_SETOR) AS contagem_vizinhos FROM cenario_nao_normalizado a JOIN cenario_nao_normalizado b ON ST_TOUCHES(a.geometry, b.geometry) WHERE a.NM_MUN = 'Sorocaba' AND b.NM_MUN = 'Sorocaba' AND a.CD_SETOR <> b.CD_SETOR GROUP BY a.CD_SETOR ORDER BY contagem_vizinhos DESC;"
+        }, 'Normalizado': {
+            'E1': "SELECT d.NM_MUN, COUNT(*) AS contagem_setores, SUM(f.AREA_KM2) AS area_total_km2, AVG(f.AREA_KM2) AS area_media_km2, RANK() OVER (ORDER BY COUNT(*) DESC) AS ranking_por_contagem FROM fato_setores_censitarios AS f JOIN dim_localizacao AS d ON f.ID_LOCALIZACAO_FK = d.ID_LOCALIZACAO GROUP BY d.NM_MUN ORDER BY ranking_por_contagem;",
+            'E2': "WITH PontosDeTeste (ponto) AS (SELECT * FROM (VALUES (ST_MAKEPOINT(-46.63, -23.55)), (ST_MAKEPOINT(-46.87, -23.38)), (ST_MAKEPOINT(-47.93, -23.49)), (ST_MAKEPOINT(-47.06, -22.90)), (ST_MAKEPOINT(-51.37, -20.77)), (ST_MAKEPOINT(-46.65, -23.56)), (ST_MAKEPOINT(-46.70, -23.52)), (ST_MAKEPOINT(-46.75, -23.48)), (ST_MAKEPOINT(-46.80, -23.44)), (ST_MAKEPOINT(-46.85, -23.40))) AS v(ponto)) SELECT p.ponto, t.CD_SETOR, d.NM_MUN FROM PontosDeTeste p JOIN fato_setores_censitarios t ON ST_CONTAINS(t.geometry, p.ponto) JOIN dim_localizacao d ON t.ID_LOCALIZACAO_FK = d.ID_LOCALIZACAO;",
+            'E3': "WITH MunicipioAlvo AS (SELECT ST_UNION_AGG(f.geometry) AS geom_mun FROM fato_setores_censitarios f JOIN dim_localizacao d ON f.ID_LOCALIZACAO_FK = d.ID_LOCALIZACAO WHERE d.NM_MUN = 'Campinas') SELECT s.NM_SITUACAO, SUM(f.AREA_KM2) AS area_total_km2 FROM fato_setores_censitarios f JOIN dim_situacao s ON f.ID_SITUACAO_FK = s.ID_SITUACAO, MunicipioAlvo m WHERE ST_INTERSECTS(f.geometry, m.geom_mun) GROUP BY s.NM_SITUACAO;",
+            'E4': "SELECT a.CD_SETOR, COUNT(b.CD_SETOR) AS contagem_vizinhos FROM fato_setores_censitarios a JOIN fato_setores_censitarios b ON ST_TOUCHES(a.geometry, b.geometry) JOIN dim_localizacao da ON a.ID_LOCALIZACAO_FK = da.ID_LOCALIZACAO JOIN dim_localizacao db ON b.ID_LOCALIZACAO_FK = db.ID_LOCALIZACAO WHERE da.NM_MUN = 'Sorocaba' AND db.NM_MUN = 'Sorocaba' AND a.CD_SETOR <> b.CD_SETOR GROUP BY a.CD_SETOR ORDER BY contagem_vizinhos DESC;"
+        }}}
 
-
-NUM_EXECUCOES = 11  # 1 de aquecimento + 10 válidas
+NUM_EXECUCOES = 11
 
 def get_connection(sgbd_name, config):
     """Cria e retorna uma conexão com o banco de dados apropriado."""
@@ -130,151 +88,207 @@ def get_connection(sgbd_name, config):
     if sgbd_name == 'PostgreSQL':
         conn = psycopg2.connect(**config)
     elif sgbd_name == 'SQL Server':
-        conn_str = (
-            f"DRIVER={config['driver']};"
-            f"SERVER={config['server']};"
-            f"DATABASE={config['database']};"
-            f"UID={config['user']};"
-            f"PWD={config['password']};"
-        )
+        conn_str = f"DRIVER={config['driver']};SERVER={config['server']};DATABASE={config['database']};UID={config['user']};PWD={config['password']};"
         conn = pyodbc.connect(conn_str)
     elif sgbd_name == 'Snowflake':
         conn = snowflake.connector.connect(**config)
     return conn
 
-def run_and_measure(sgbd, modelo, query_id):
-    """Executa um único experimento e retorna os resultados detalhados."""
+def get_storage_metrics(sgbd, tabelas):
+    """Coleta métricas de armazenamento para as tabelas especificadas e retorna o tamanho total em MB."""
+    config = CONEXOES[sgbd]
+    tamanho_total_mb = 0
+    conn = None
+    try:
+        conn = get_connection(sgbd, config)
+        cursor = conn.cursor()
+        total_bytes = 0
+        if sgbd == 'PostgreSQL':
+            for tabela in tabelas:
+                cursor.execute(f"SELECT pg_total_relation_size('{tabela.lower()}');")
+                size_bytes = cursor.fetchone()[0]
+                if size_bytes: total_bytes += size_bytes
+        elif sgbd == 'SQL Server':
+            total_kb = 0
+            for tabela in tabelas:
+                cursor.execute(f"EXEC sp_spaceused '{tabela}';")
+                row = cursor.fetchone()
+                data_kb = int(re.search(r'(\d+)', row.data).group(1))
+                index_kb = int(re.search(r'(\d+)', row.index_size).group(1))
+                total_kb += data_kb + index_kb
+            total_bytes = total_kb * 1024
+        elif sgbd == 'Snowflake':
+            for tabela in tabelas:
+                db, schema = config['database'], config['schema']
+                cursor.execute(f"SELECT BYTES FROM {db}.INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = '{schema.upper()}' AND TABLE_NAME = '{tabela.upper()}'")
+                size_bytes = cursor.fetchone()
+                if size_bytes and size_bytes[0]: total_bytes += size_bytes[0]
+        tamanho_total_mb = total_bytes / (1024 * 1024) if total_bytes > 0 else 0
+    except Exception as e:
+        print(f"❌ ERRO ao coletar armazenamento para {sgbd}: {e}")
+        return None
+    finally:
+        if conn: conn.close()
+    return tamanho_total_mb
+
+def run_experiment(sgbd, modelo, query_id, tamanho_armazenamento_mb):
+    """
+    Executa o experimento para o cenário e retorna uma lista de dicionários padronizados para o CSV.
+    """
     config = CONEXOES[sgbd]
     sql = QUERIES[sgbd][modelo][query_id]
-    
-    if "-- COLE AQUI" in sql:
-        print(f"ERRO: A query para {sgbd}/{modelo}/{query_id} não foi preenchida. Pulando experimento.")
-        return []
-        
     resultados_experimento = []
-    
-    print(f"Iniciando experimento: SGBD={sgbd}, Modelo={modelo}, Query={query_id}")
+
+    print(f"\n🚀 Iniciando execução: {sgbd} | {modelo} | {query_id}")
+    print(f"   📦 Armazenamento do cenário: {tamanho_armazenamento_mb:.3f} MB")
+    print("-" * 60)
 
     try:
         conn = get_connection(sgbd, config)
         cursor = conn.cursor()
-
         for i in range(NUM_EXECUCOES):
-            tempo_ms, io_reads, io_hits = None, None, None
-            
-            # --- PostgreSQL ---
+            tempo_total_ms = None
+            tempo_servidor_ms = None
+            io_reads = None
+            io_hits = None
+            bytes_scanned_mb = None
+
+            # Medição de tempo (comum a todos)
+            start_time = time.time()
+            cursor.execute(sql)
+            _ = cursor.fetchall()
+            end_time = time.time()
+            tempo_total_ms = (end_time - start_time) * 1000
+
             if sgbd == 'PostgreSQL':
-                query_modificada = f"EXPLAIN (ANALYZE, BUFFERS) {sql}"
-                start_time = time.time()
-                cursor.execute(query_modificada)
-                explain_output = "\n".join(str(row[0]) for row in cursor.fetchall())
-                end_time = time.time()
-                
-                exec_time_match = re.search(r"Execution Time: ([\d.]+)", explain_output)
-                tempo_ms = float(exec_time_match.group(1)) if exec_time_match else (end_time - start_time) * 1000
-
-                io_reads = sum([int(val) for val in re.findall(r"shared read=(\d+)", explain_output)])
-                io_hits = sum([int(val) for val in re.findall(r"shared hit=(\d+)", explain_output)])
-
-            # --- SQL Server ---
+                try:
+                    cursor.execute(f"EXPLAIN (ANALYZE, BUFFERS) {sql}")
+                    explain_output = "\n".join(str(row[0]) for row in cursor.fetchall())
+                    exec_time_match = re.search(r"Execution Time: ([\d.]+)", explain_output)
+                    if exec_time_match:
+                        tempo_servidor_ms = float(exec_time_match.group(1))
+                    io_reads = sum([int(val) for val in re.findall(r"shared read=(\d+)", explain_output)])
+                    io_hits = sum([int(val) for val in re.findall(r"shared hit=(\d+)", explain_output)])
+                except Exception as e:
+                    print(f"   ⚠️  Aviso (PG): Não foi possível extrair métricas detalhadas: {e}")
             elif sgbd == 'SQL Server':
-                cursor.execute("SET STATISTICS TIME ON;")
-                start_time = time.time()
-                cursor.execute(sql)
-                _ = cursor.fetchall()
-                end_time = time.time()
-                tempo_ms = (end_time - start_time) * 1000
-                cursor.execute("SET STATISTICS TIME OFF;")
-                # Lembrete: I/O para SQL Server deve ser coletado manualmente via DBeaver/SSMS.
-
-            # --- Snowflake ---
+                # Tenta capturar mensagens de I/O
+                try:
+                    while cursor.nextset():
+                        pass
+                    stats_msgs = "\n".join([msg[1] for msg in getattr(cursor, 'messages', []) if msg[0] != 'DBINFO'])
+                    logical_reads_match = re.findall(r"logical reads (\d+)", stats_msgs)
+                    if logical_reads_match:
+                        io_reads = sum([int(val) for val in logical_reads_match])
+                    physical_reads_match = re.findall(r"physical reads (\d+)", stats_msgs)
+                    # Se quiser, pode adicionar physical_reads como outra coluna
+                except Exception as e:
+                    print(f"[AVISO] Erro ao tentar capturar métricas de I/O do SQL Server: {e}")
             elif sgbd == 'Snowflake':
-                start_time = time.time()
-                cursor.execute(sql)
-                query_id_sf = cursor.sfqid
-                _ = cursor.fetchall()
-                end_time = time.time()
-                
-                tempo_ms = (end_time - start_time) * 1000
-                
-                # Espera o histórico do Snowflake ser atualizado
-                time.sleep(5) 
-                
-                hist_query = f"SELECT BYTES_SCANNED FROM snowflake.account_usage.query_history WHERE QUERY_ID = '{query_id_sf}';"
-                cursor.execute(hist_query)
-                result = cursor.fetchone()
-                if result:
-                    io_reads = result[0] / (1024*1024) if result[0] is not None else 0 # Converte bytes para MB
+                # Retry para buscar métricas na query_history
+                def get_snowflake_query_metrics(cursor, query_id_sf, max_wait=60):
+                    waited = 0
+                    while waited < max_wait:
+                        cursor.execute(f"SELECT EXECUTION_TIME, BYTES_SCANNED FROM snowflake.account_usage.query_history WHERE QUERY_ID = '{query_id_sf}' LIMIT 1;")
+                        result = cursor.fetchone()
+                        if result and result[0] is not None:
+                            return result
+                        time.sleep(5)
+                        waited += 5
+                    return None
+                query_id_sf = getattr(cursor, 'sfqid', None)
+                if query_id_sf:
+                    result = get_snowflake_query_metrics(cursor, query_id_sf, max_wait=60)
+                    if result:
+                        try:
+                            tempo_servidor_ms = float(result[0]) if result[0] is not None else None
+                        except Exception:
+                            tempo_servidor_ms = None
+                        try:
+                            bytes_scanned_mb = float(result[1]) / (1024*1024) if result[1] is not None else None
+                        except Exception:
+                            bytes_scanned_mb = None
 
-            # Mostra resultado de cada execução
             if i == 0:
-                print(f"  🔥 Execução de aquecimento: Tempo={tempo_ms:.2f} ms")
+                print(f"   🔥 Aquecimento: {tempo_total_ms:.2f} ms")
             else:
-                print(f"  ✅ Execução {i}/{NUM_EXECUCOES-1}: Tempo={tempo_ms:.2f} ms, I/O Reads={io_reads}, I/O Hits={io_hits}")
+                print(f"   ✅ Exec {i:2d}/10: {tempo_total_ms:7.2f} ms")
                 resultados_experimento.append({
                     'SGBD': sgbd,
                     'Modelo': modelo,
                     'Experimento': query_id,
                     'N_Execucao': i,
-                    'Tempo_ms': tempo_ms,
+                    'Tempo_Total_ms': tempo_total_ms,
+                    'Tempo_Servidor_ms': tempo_servidor_ms,
+                    'Armazenamento_MB': tamanho_armazenamento_mb,
                     'IO_Reads': io_reads,
-                    'IO_Hits_Cache': io_hits
+                    'IO_Hits': io_hits,
+                    'Bytes_Scanned_MB': bytes_scanned_mb
                 })
-    
     except Exception as e:
-        print(f"ERRO: {e}")
+        print(f"❌ ERRO GERAL NO EXPERIMENTO: {e}")
     finally:
         if 'conn' in locals() and conn:
             conn.close()
-            
     return resultados_experimento
 
-# --- CONFIGURAÇÃO DO EXPERIMENTO ---
-# Preencha as variáveis abaixo com os valores desejados
+def save_postgresql_results(resultados, modelo, sgbd, experimento):
+    """Salva os resultados detalhados do PostgreSQL em um arquivo CSV."""
+    if not resultados:
+        print(f"\nINFO: Nenhum resultado para salvar para {sgbd} | {modelo} | {experimento}.")
+        return
 
-SGBD_ESCOLHIDO = "PostgreSQL"  # Opções: "PostgreSQL", "SQL Server", "Snowflake"
-MODELO_ESCOLHIDO = "Desnormalizado"  # Opções: "Desnormalizado", "Normalizado"
-EXPERIMENTO_ESCOLHIDO = "E4"  # Opções: "E1", "E2", "E3", "E4"
+    df = pd.DataFrame(resultados)
+    RESULTS_DIR = os.path.join(os.path.dirname(__file__), 'results')
+    os.makedirs(RESULTS_DIR, exist_ok=True)
+    caminho_arquivo = os.path.join(RESULTS_DIR, f"resultado_{sgbd}_{modelo}_{experimento}.csv")
+    df.to_csv(caminho_arquivo, index=False, float_format='%.3f')
+    
+    print("\n" + "=" * 60)
+    print(f"📈 RESULTADOS SALVOS PARA - {modelo}")
+    print(f"💾 Arquivo: {caminho_arquivo}")
+    print("=" * 60)
 
-# --- EXECUÇÃO DO EXPERIMENTO ---
-
-RESULTS_DIR = os.path.join(os.path.dirname(__file__), 'results')
-os.makedirs(RESULTS_DIR, exist_ok=True)
 
 if __name__ == "__main__":
-    print(f"=== EXECUTANDO EXPERIMENTO ===")
-    print(f"SGBD: {SGBD_ESCOLHIDO}")
-    print(f"Modelo: {MODELO_ESCOLHIDO}")
-    print(f"Experimento: {EXPERIMENTO_ESCOLHIDO}")
-    print("=" * 40)
+    print("=" * 60)
+    print("|| 🧪 ORQUESTRADOR DE EXPERIMENTOS DE PERFORMANCE 🧪 ||")
+    print("=" * 60)
+    imprimir_configuracoes()
     
-    # Executa o experimento
-    resultados_finais = run_and_measure(SGBD_ESCOLHIDO, MODELO_ESCOLHIDO, EXPERIMENTO_ESCOLHIDO)
+    # --- Definição dos Testes a Serem Executados ---
+    SGDB_LIST = ["PostgreSQL", "SQL Server", "Snowflake"]
+    MODELO_LIST = ["Desnormalizado", "Normalizado"]
+    EXPERIMENTO_LIST = ["E1", "E2", "E3", "E4"]
     
-    if resultados_finais:
-        df = pd.DataFrame(resultados_finais)
-        
-        # Salva o resultado em um arquivo CSV na pasta apropriada
-        nome_arquivo = f"resultado_{SGBD_ESCOLHIDO}_{MODELO_ESCOLHIDO}_{EXPERIMENTO_ESCOLHIDO}.csv"
-        caminho_arquivo = os.path.join(RESULTS_DIR, nome_arquivo)
-        df.to_csv(caminho_arquivo, index=False)
-        
-        # Mostra estatísticas dos resultados
-        print(f"\n=== RESULTADOS DO EXPERIMENTO ===")
-        print(f"SGBD: {SGBD_ESCOLHIDO}")
-        print(f"Modelo: {MODELO_ESCOLHIDO}")
-        print(f"Experimento: {EXPERIMENTO_ESCOLHIDO}")
-        print(f"Arquivo salvo: {caminho_arquivo}")
-        
-        if len(resultados_finais) > 0:
-            tempos = [r['Tempo_ms'] for r in resultados_finais if r['Tempo_ms'] is not None]
-            if tempos:
-                print(f"\nEstatísticas de Tempo:")
-                print(f"  • Média: {sum(tempos)/len(tempos):.2f} ms")
-                print(f"  • Mínimo: {min(tempos):.2f} ms")
-                print(f"  • Máximo: {max(tempos):.2f} ms")
-                print(f"  • Total de execuções: {len(tempos)}")
-        
-        print(f"\nExperimento concluído!")
-    else:
-        print("Nenhum resultado foi gerado. Verifique as configurações.")
+    tabelas_cenarios = {
+        'Desnormalizado': ['cenario_nao_normalizado'],
+        'Normalizado': ['fato_setores_censitarios', 'dim_localizacao', 'dim_situacao']
+    }
+    
+    # --- Loop Principal de Execução ---
+    for sgbd in SGDB_LIST:
+        for modelo in MODELO_LIST:
+            for experimento in EXPERIMENTO_LIST:
+                print("\n" + "#" * 70)
+                print(f"## INICIANDO BLOCO DE TESTE: {sgbd} | {modelo} | {experimento}")
+                print("#" * 70)
+
+                # Coleta de métricas de armazenamento para o cenário atual
+                tabelas_do_modelo = tabelas_cenarios[modelo]
+                tamanho_mb = get_storage_metrics(sgbd, tabelas_do_modelo)
+                
+                if tamanho_mb is None:
+                    print(f"AVISO: Não foi possível calcular o armazenamento. Pulando este bloco de teste.")
+                    continue
+
+                # Executa o experimento
+                resultados = run_experiment(sgbd, modelo, experimento, tamanho_mb)
+                
+                # Salva o CSV padronizado para todos os bancos
+                df = pd.DataFrame(resultados)
+                csv_path = f"results/resultado_{sgbd}_{modelo}_{experimento}.csv"
+                df.to_csv(csv_path, index=False)
+                print(f"💾 CSV salvo: {csv_path}")
+
+    print("\n🎉 Todos os blocos de teste foram concluídos! 🎉")

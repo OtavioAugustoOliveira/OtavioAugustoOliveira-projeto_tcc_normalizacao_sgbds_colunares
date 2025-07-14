@@ -1,35 +1,26 @@
---Experimento 1: Agregação Analítica Ampla
---Objetivo Analítico: "Qual a área total (em km²) e a população total de todos os municípios, agrupadas por cada estado (UF)?"
+-- Experimento 1: Agregação Analítica Complexa
+-- Objetivo: Forçar o banco a processar resultados da agregação com função de janela (RANK)
+-- Pergunta: "Para cada município, calcule a contagem de setores, a área total, a área média e crie um ranking dos municípios por quantidade de setores."
 
---O que Testa na Prática: A eficiência do SGBD em varrer uma grande quantidade de dados (SUM, GROUP BY). É o teste ideal para verificar a vantagem do armazenamento colunar, que só precisará ler as colunas AREA_KM2, populacao e as colunas de agrupamento, ignorando a geometria pesada.
-
-
-
-
-
+-- Cenário Desnormalizado
 SELECT
-    SIGLA_UF,
-    SUM(AREA_KM2) AS area_total_km2
-FROM
-    cenario_nao_normalizado
-GROUP BY
-    SIGLA_UF
-ORDER BY
-    SIGLA_UF;
+    NM_MUN,
+    COUNT(*) AS contagem_setores,
+    SUM(AREA_KM2) AS area_total_km2,
+    AVG(AREA_KM2) AS area_media_km2,
+    RANK() OVER (ORDER BY COUNT(*) DESC) AS ranking_por_contagem
+FROM cenario_nao_normalizado
+GROUP BY NM_MUN
+ORDER BY ranking_por_contagem;
 
-
-
-------------
-
+-- Cenário Normalizado
 SELECT
-    est.SIGLA_UF,
-    SUM(mun.AREA_KM2) AS area_total_km2
-    -- Adicione SUM(mun.populacao) se tiver esse dado
-FROM
-    fato_municipios AS mun
-JOIN
-    dim_estados AS est ON mun.ID_UF_FK = est.ID_UF
-GROUP BY
-    est.SIGLA_UF
-ORDER BY
-    est.SIGLA_UF;
+    d.NM_MUN,
+    COUNT(*) AS contagem_setores,
+    SUM(f.AREA_KM2) AS area_total_km2,
+    AVG(f.AREA_KM2) AS area_media_km2,
+    RANK() OVER (ORDER BY COUNT(*) DESC) AS ranking_por_contagem
+FROM fato_setores_censitarios AS f
+JOIN dim_localizacao AS d ON f.ID_LOCALIZACAO_FK = d.ID_LOCALIZACAO
+GROUP BY d.NM_MUN
+ORDER BY ranking_por_contagem;

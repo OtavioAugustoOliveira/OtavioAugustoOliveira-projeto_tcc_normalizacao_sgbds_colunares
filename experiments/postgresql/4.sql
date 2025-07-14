@@ -1,39 +1,21 @@
---Detalhamento do Experimento 4
---Objetivo Analítico: "Para cada município do estado de Pernambuco, listar todos os seus municípios vizinhos."
+-- Experimento 4: Contagem Massiva de Vizinhos
+-- Objetivo: Executar a operação mais cara: um JOIN espacial da tabela contra ela mesma em escopo maior
+-- Pergunta: "Para cada setor censitário do município de 'Sorocaba', conte quantos outros setores o tocam (são vizinhos diretos)."
 
---Operação Principal: SELF-JOIN da tabela de municípios (... AS A JOIN ... AS B) com um predicado espacial ON ST_Touches(A.geometry, B.geometry).
+-- Cenário Desnormalizado
+SELECT a.CD_SETOR, COUNT(b.CD_SETOR) AS contagem_vizinhos
+FROM cenario_nao_normalizado a
+JOIN cenario_nao_normalizado b ON ST_Touches(a.geometry, b.geometry)
+WHERE a.NM_MUN = 'Sorocaba' AND b.NM_MUN = 'Sorocaba' AND a.CD_SETOR <> b.CD_SETOR
+GROUP BY a.CD_SETOR
+ORDER BY contagem_vizinhos DESC;
 
-
-
-
-
-
--- Encontra todos os pares de municípios vizinhos em Pernambuco
-SELECT
-    A.NM_MUN AS municipio_origem,
-    B.NM_MUN AS municipio_vizinho
-FROM
-    cenario_nao_normalizado AS A
-JOIN
-    cenario_nao_normalizado AS B ON ST_Touches(A.geometry, B.geometry)
-WHERE
-    A.SIGLA_UF = 'PE'
-    AND A.CD_MUN < B.CD_MUN; -- Condição para evitar duplicatas (ex: Recife-Olinda e Olinda-Recife) e auto-referência.
-
-
-
-
-
-
-
--- Encontra todos os pares de municípios vizinhos em Pernambuco
-SELECT
-    A.NM_MUN AS municipio_origem,
-    B.NM_MUN AS municipio_vizinho
-FROM
-    fato_municipios AS A
-JOIN
-    fato_municipios AS B ON ST_Touches(A.geometry, B.geometry)
-WHERE
-    A.ID_UF_FK = '26' -- Supondo que '26' é o código de Pernambuco
-    AND A.ID_MUNICIPIO < B.ID_MUNICIPIO; -- Mesma condição para evitar duplicatas
+-- Cenário Normalizado
+SELECT a.CD_SETOR, COUNT(b.CD_SETOR) AS contagem_vizinhos
+FROM fato_setores_censitarios a
+JOIN fato_setores_censitarios b ON ST_Touches(a.geometry, b.geometry)
+JOIN dim_localizacao da ON a.ID_LOCALIZACAO_FK = da.ID_LOCALIZACAO
+JOIN dim_localizacao db ON b.ID_LOCALIZACAO_FK = db.ID_LOCALIZACAO
+WHERE da.NM_MUN = 'Sorocaba' AND db.NM_MUN = 'Sorocaba' AND a.CD_SETOR <> b.CD_SETOR
+GROUP BY a.CD_SETOR
+ORDER BY contagem_vizinhos DESC;

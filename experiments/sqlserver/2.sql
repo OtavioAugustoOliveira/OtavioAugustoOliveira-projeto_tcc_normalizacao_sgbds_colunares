@@ -1,28 +1,26 @@
---Experimento 2: Filtro Geográfico Simples (Point-in-Polygon)
---Objetivo Analítico: "Dado um ponto de coordenada específico (ex: o Palácio do Campo das Princesas no Recife), qual é o município que contém este ponto?"
+-- Experimento 2: Múltiplos Pontos em Polígonos
+-- Objetivo: Forçar centenas de buscas em uma única consulta, testando a capacidade do banco de lidar com JOINs baseados em predicados espaciais
+-- Pergunta: "Para um conjunto de pontos aleatórios em São Paulo, determine em qual setor censitário cada ponto está localizado."
 
---O que Testa na Prática: A eficiência do índice espacial para uma busca muito seletiva ("seek"). É um dos casos de uso mais comuns em geoprocessamento.
+WITH PontosDeTeste (ponto) AS (
+    SELECT GEOMETRY::Point(-46.63, -23.55, 4326) UNION ALL
+    SELECT GEOMETRY::Point(-46.87, -23.38, 4326) UNION ALL
+    SELECT GEOMETRY::Point(-47.93, -23.49, 4326) UNION ALL
+    SELECT GEOMETRY::Point(-47.06, -22.90, 4326) UNION ALL
+    SELECT GEOMETRY::Point(-51.37, -20.77, 4326) UNION ALL
+    SELECT GEOMETRY::Point(-46.65, -23.56, 4326) UNION ALL
+    SELECT GEOMETRY::Point(-46.70, -23.52, 4326) UNION ALL
+    SELECT GEOMETRY::Point(-46.75, -23.48, 4326) UNION ALL
+    SELECT GEOMETRY::Point(-46.80, -23.44, 4326) UNION ALL
+    SELECT GEOMETRY::Point(-46.85, -23.40, 4326)
+)
+-- Cenário Desnormalizado
+SELECT p.ponto.ToString(), t.CD_SETOR, t.NM_MUN 
+FROM PontosDeTeste p 
+JOIN cenario_nao_normalizado t ON t.geometry.STContains(p.ponto) = 1;
 
-
-
-SELECT
-    NM_MUN,
-    NM_UF
-FROM
-    cenario_nao_normalizado
-WHERE
-    geometry.STContains(geography::Point(-8.0578, -34.8779, 4326)) = 1;
-
-
-
--------------
-
-SELECT
-    mun.NM_MUN,
-    est.NM_UF
-FROM
-    fato_municipios AS mun
-JOIN
-    dim_estados AS est ON mun.ID_UF_FK = est.ID_UF
-WHERE
-    mun.geometry.STContains(geography::Point(-8.0578, -34.8779, 4326)) = 1;
+-- Cenário Normalizado
+SELECT p.ponto.ToString(), t.CD_SETOR, d.NM_MUN 
+FROM PontosDeTeste p 
+JOIN fato_setores_censitarios t ON t.geometry.STContains(p.ponto) = 1
+JOIN dim_localizacao d ON t.ID_LOCALIZACAO_FK = d.ID_LOCALIZACAO;

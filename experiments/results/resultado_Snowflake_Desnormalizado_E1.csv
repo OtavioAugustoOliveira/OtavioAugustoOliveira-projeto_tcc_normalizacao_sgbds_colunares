@@ -1,0 +1,11 @@
+SGBD,Modelo,Experimento,N_Execucao,Tempo_Total_ms,Tempo_Servidor_ms,Armazenamento_MB,PG_IO_Reads,PG_IO_Hits_Cache,SS_IO_Logical_Reads,SS_IO_Physical_Reads,SF_Scanned_MB
+Snowflake,Desnormalizado,E1,1,374.890,,68.759,,,,,
+Snowflake,Desnormalizado,E1,2,283.718,,68.759,,,,,
+Snowflake,Desnormalizado,E1,3,282.616,,68.759,,,,,
+Snowflake,Desnormalizado,E1,4,325.612,,68.759,,,,,
+Snowflake,Desnormalizado,E1,5,298.640,,68.759,,,,,
+Snowflake,Desnormalizado,E1,6,289.756,,68.759,,,,,
+Snowflake,Desnormalizado,E1,7,296.683,,68.759,,,,,
+Snowflake,Desnormalizado,E1,8,455.236,,68.759,,,,,
+Snowflake,Desnormalizado,E1,9,323.693,,68.759,,,,,
+Snowflake,Desnormalizado,E1,10,283.996,,68.759,,,,,

@@ -1,0 +1,7 @@
+Tabelas,Tamanho_Total_MB,SGBD,Modelo
+cenario_nao_normalizado,410.797,PostgreSQL,Desnormalizado
+"fato_setores_censitarios, dim_localizacao, dim_situacao",393.852,PostgreSQL,Normalizado
+cenario_nao_normalizado,554.266,SQL Server,Desnormalizado
+"fato_setores_censitarios, dim_localizacao, dim_situacao",633.031,SQL Server,Normalizado
+cenario_nao_normalizado,68.759,Snowflake,Desnormalizado
+"fato_setores_censitarios, dim_localizacao, dim_situacao",322.224,Snowflake,Normalizado
