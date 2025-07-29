@@ -1,99 +1,79 @@
--- Novo modelo estrela para setores censitários
+-- DROP de todas as tabelas do modelo (garante ambiente limpo)
+DROP TABLE IF EXISTS normalizado_municipios;
+DROP TABLE IF EXISTS normalizado_estados;
+DROP TABLE IF EXISTS normalizado_regioes;
+DROP TABLE IF EXISTS normalizado_logradouros;
+DROP TABLE IF EXISTS desnormalizado_tabelao;
 
--- Tabela de Dimensão: Localização
-CREATE OR REPLACE TABLE DIM_LOCALIZACAO (
-    id_localizacao INTEGER AUTOINCREMENT PRIMARY KEY,
-    cd_mun VARCHAR(50),
-    nm_mun VARCHAR(100),
-    cd_dist VARCHAR(50),
-    nm_dist VARCHAR(100),
-    cd_subdist VARCHAR(50),
-    cd_rgi VARCHAR(50),
-    nm_rgi VARCHAR(100),
-    cd_rgint VARCHAR(50),
-    nm_rgint VARCHAR(100),
-    cd_uf VARCHAR(10),
-    nm_uf VARCHAR(100),
-    cd_regiao VARCHAR(10),
-    nm_regiao VARCHAR(100)
+CREATE TABLE normalizado_municipios (
+    cd_mun STRING,
+    nm_mun STRING,
+    sigla_uf STRING,
+    geometry_wkt STRING
 );
 
--- Tabela de Dimensão: Situação
-CREATE OR REPLACE TABLE DIM_SITUACAO (
-    id_situacao INTEGER AUTOINCREMENT PRIMARY KEY,
-    cd_sit VARCHAR(50),
-    nm_situacao VARCHAR(100)
+CREATE TABLE normalizado_estados (
+    cd_uf STRING,
+    nm_uf STRING,
+    sigla_uf STRING,
+    geometry_wkt STRING
 );
 
--- Tabela de Dimensão: Tipo
-CREATE OR REPLACE TABLE DIM_TIPO (
-    id_tipo INTEGER AUTOINCREMENT PRIMARY KEY,
-    cd_tipo VARCHAR(50),
-    nm_tipo VARCHAR(100)
+CREATE TABLE normalizado_regioes (
+    nm_regiao STRING,
+    sigla_rg STRING,
+    geometry_wkt STRING
 );
 
--- Tabela de Dimensão: Bairro
-CREATE OR REPLACE TABLE DIM_BAIRRO (
-    id_bairro INTEGER AUTOINCREMENT PRIMARY KEY,
-    cd_bairro VARCHAR(50),
-    nm_bairro VARCHAR(100)
+CREATE TABLE normalizado_logradouros (
+    id_face_logradouro STRING,
+    nm_log STRING,
+    geometry_wkt STRING
 );
 
--- Tabela de Dimensão: Conurbação
-CREATE OR REPLACE TABLE DIM_CONCURB (
-    id_concurb INTEGER AUTOINCREMENT PRIMARY KEY,
-    cd_concurb VARCHAR(50),
-    nm_concurb VARCHAR(100)
+CREATE TABLE desnormalizado_tabelao (
+    id_face_logradouro STRING,
+    nome_logradouro STRING,
+    geometry_wkt STRING,
+    id_municipio_logradouro STRING,
+    nome_municipio STRING,
+    sigla_estado STRING,
+    nome_estado STRING,
+    sigla_regiao STRING,
+    nome_regiao STRING
 );
 
--- Tabela Fato: Setores Censitários
-CREATE OR REPLACE TABLE FATO_SETORES_CENSITARIOS (
-    id_fato_setor INTEGER AUTOINCREMENT PRIMARY KEY,
-    cd_setor VARCHAR(50),
-    area_km2 FLOAT,
-    geometry_wkt VARCHAR,
-    id_localizacao_fk INTEGER REFERENCES DIM_LOCALIZACAO(id_localizacao),
-    id_situacao_fk INTEGER REFERENCES DIM_SITUACAO(id_situacao),
-    id_tipo_fk INTEGER REFERENCES DIM_TIPO(id_tipo),
-    id_bairro_fk INTEGER REFERENCES DIM_BAIRRO(id_bairro),
-    id_concurb_fk INTEGER REFERENCES DIM_CONCURB(id_concurb),
-    geometry GEOGRAPHY
-);
+-- Conversão de geometria para tabelas normalizadas e desnormalizada
+ALTER TABLE normalizado_municipios ADD COLUMN geometry GEOGRAPHY;
+UPDATE normalizado_municipios SET geometry = TO_GEOGRAPHY(geometry_wkt);
+ALTER TABLE normalizado_municipios DROP COLUMN geometry_wkt;
 
--- Tabela Não Normalizada de Referência
-CREATE OR REPLACE TABLE CENARIO_NAO_NORMALIZADO (
-    cd_setor VARCHAR(50),
-    nm_situacao VARCHAR(100),
-    cd_sit VARCHAR(50),
-    cd_tipo VARCHAR(50),
-    area_km2 FLOAT,
-    cd_regiao VARCHAR(10),
-    nm_regiao VARCHAR(100),
-    cd_uf VARCHAR(10),
-    nm_uf VARCHAR(100),
-    cd_mun VARCHAR(50),
-    nm_mun VARCHAR(100),
-    cd_dist VARCHAR(50),
-    nm_dist VARCHAR(100),
-    cd_subdist VARCHAR(50),
-    cd_bairro VARCHAR(50),
-    nm_bairro VARCHAR(100),
-    cd_rgint VARCHAR(50),
-    nm_rgint VARCHAR(100),
-    cd_rgi VARCHAR(50),
-    nm_rgi VARCHAR(100),
-    cd_concurb VARCHAR(50),
-    nm_concurb VARCHAR(100),
-    geometry_wkt VARCHAR,
-    geometry GEOGRAPHY
-);
+ALTER TABLE normalizado_estados ADD COLUMN geometry GEOGRAPHY;
+UPDATE normalizado_estados SET geometry = TO_GEOGRAPHY(geometry_wkt);
+ALTER TABLE normalizado_estados DROP COLUMN geometry_wkt;
 
--- Conversão de geometria (deixe no final absoluto)
-UPDATE FATO_SETORES_CENSITARIOS SET geometry = TO_GEOGRAPHY(geometry_wkt);
-ALTER TABLE FATO_SETORES_CENSITARIOS DROP COLUMN geometry_wkt;
+ALTER TABLE normalizado_regioes ADD COLUMN geometry GEOGRAPHY;
+UPDATE normalizado_regioes SET geometry = TO_GEOGRAPHY(geometry_wkt);
+ALTER TABLE normalizado_regioes DROP COLUMN geometry_wkt;
 
-UPDATE CENARIO_NAO_NORMALIZADO SET geometry = TO_GEOGRAPHY(geometry_wkt);
-ALTER TABLE CENARIO_NAO_NORMALIZADO DROP COLUMN geometry_wkt;
+ALTER TABLE normalizado_logradouros ADD COLUMN geometry GEOGRAPHY;
+UPDATE normalizado_logradouros SET geometry = TO_GEOGRAPHY(geometry_wkt);
+ALTER TABLE normalizado_logradouros DROP COLUMN geometry_wkt;
 
--- Nota: Snowflake não suporta índices espaciais como PostgreSQL/SQL Server
--- O Snowflake otimiza automaticamente consultas espaciais em colunas GEOGRAPHY
+-- Conversão de geometria para a tabela DESNORMALIZADO_TABELAO
+ALTER TABLE desnormalizado_tabelao ADD COLUMN geometry GEOGRAPHY;
+UPDATE desnormalizado_tabelao SET geometry = TO_GEOGRAPHY(geometry_wkt);
+ALTER TABLE desnormalizado_tabelao DROP COLUMN geometry_wkt;
+
+-- Chaves primárias
+ALTER TABLE normalizado_municipios ADD CONSTRAINT pk_normalizado_municipios PRIMARY KEY (cd_mun);
+ALTER TABLE normalizado_estados ADD CONSTRAINT pk_normalizado_estados PRIMARY KEY (cd_uf);
+ALTER TABLE normalizado_regioes ADD CONSTRAINT pk_normalizado_regioes PRIMARY KEY (sigla_rg);
+ALTER TABLE normalizado_logradouros ADD CONSTRAINT pk_normalizado_logradouros PRIMARY KEY (id_face_logradouro);
+
+-- Uniques necessários para as FKs
+ALTER TABLE normalizado_estados ADD CONSTRAINT uq_normalizado_estados_sigla_uf UNIQUE (sigla_uf);
+ALTER TABLE normalizado_regioes ADD CONSTRAINT uq_normalizado_regioes_sigla_rg UNIQUE (sigla_rg);
+
+-- Chaves estrangeiras
+ALTER TABLE normalizado_municipios ADD CONSTRAINT fk_municipios_estados FOREIGN KEY (sigla_uf) REFERENCES normalizado_estados(sigla_uf);

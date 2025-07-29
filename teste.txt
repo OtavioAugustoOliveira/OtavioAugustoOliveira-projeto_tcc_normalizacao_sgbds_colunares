@@ -1,0 +1,5 @@
+select * from normalizado_municipios;
+select * from normalizado_estados;
+select * from normalizado_regioes;
+select * from normalizado_logradouros;
+select * from desnormalizado_tabelao;

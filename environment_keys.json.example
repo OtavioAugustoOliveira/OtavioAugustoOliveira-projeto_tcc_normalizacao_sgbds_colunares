@@ -1,23 +1,8 @@
 {
-  "postgresql": {
-    "user": "",
-    "password": "",
-    "host": "",
-    "port": "",
-    "dbname": ""
-  },
-  "sql_server": {
-    "server_name": "",
-    "dbname": "",
-    "user": "",
-    "password": ""
-  },
-  "snowflake": {
-    "user": "",
-    "password": "",
-    "account": "",
-    "warehouse": "",
-    "database": "",
-    "schema": ""
-  }
+    "SNOW_USER": "seu_usuario_snowflake",
+    "SNOW_PASSWORD": "sua_senha_snowflake",
+    "SNOW_ACCOUNT": "seu_account_snowflake",
+    "SNOW_WAREHOUSE": "seu_warehouse_snowflake",
+    "SNOW_DATABASE": "seu_database_snowflake",
+    "SNOW_SCHEMA": "seu_schema_snowflake"
 } 
